@@ -554,6 +554,25 @@ describe(getTestDialectTeaser('Model.sync & Sequelize#sync'), () => {
     expect(bFks[0].columnName).to.eq('AId');
   });
 
+  it('checks if the model is synced', async () => {
+    let testSync = sequelize.define('testSync', {
+      name: DataTypes.STRING,
+    });
+    expect(await testSync.isSynced()).to.eq(false);
+
+    await sequelize.sync();
+    expect(await testSync.isSynced()).to.eq(true);
+
+    testSync = sequelize.define('testSync', {
+      name: DataTypes.STRING,
+      age: DataTypes.INTEGER,
+    });
+    expect(await testSync.isSynced()).to.eq(false);
+
+    await sequelize.sync({ alter: true });
+    expect(await testSync.isSynced()).to.eq(true);
+  });
+
   // TODO: sqlite's foreign_key_list pragma does not return the DEFERRABLE status of the column
   //  so sync({ alter: true }) cannot know whether the column must be updated.
   //  so for now, deferrableConstraints is disabled for sqlite (as it's only used in tests)

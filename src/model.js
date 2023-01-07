@@ -864,6 +864,50 @@ ${associationOwner._getAssociationDebugList()}`);
     return this;
   }
 
+  static async isSynced() {
+    const options = { ...this.options /* , ...options */ };
+
+    const tableName = { ...this.table };
+    if (options.schema && options.schema !== tableName.schema) {
+      // Some users sync the same set of tables in different schemas for various reasons
+      // They then set `searchPath` when running a query to use different schemas.
+      // See https://github.com/sequelize/sequelize/pull/15274#discussion_r1020770364
+      // We only allow this if the tables are in the default schema, because we need to ensure that
+      // all tables are in the same schema to prevent collisions and `searchPath` only works if we don't specify the schema
+      // (which we don't for the default schema)
+      if (tableName.schema !== this.sequelize.dialect.getDefaultSchema()) {
+        throw new Error(`The "schema" option in sync can only be used on models that do not already specify a schema, or that are using the default schema. Model ${this.name} already specifies schema ${tableName.schema}`);
+      }
+
+      tableName.schema = options.schema;
+    }
+
+    if (!await this.queryInterface.tableExists(tableName, options)) {
+      return false;
+    }
+
+    const modelDefinition = this.modelDefinition;
+    const columnDefs = getObjectFromMap(modelDefinition.columns);
+    const existingColumns = await this.queryInterface.describeTable(tableName, options);
+
+    const columnDefsKeys = Object.keys(columnDefs);
+    columnDefsKeys.sort();
+    const existingColumnsKeys = Object.keys(existingColumns);
+    existingColumnsKeys.sort();
+
+    if (columnDefsKeys.length !== existingColumnsKeys.length) {
+      return false;
+    }
+
+    for (const [i, columnDefsKey] of columnDefsKeys.entries()) {
+      if (columnDefsKey !== existingColumnsKeys[i]) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   /**
    * Drop the table represented by this Model
    *
